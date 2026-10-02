@@ -28,6 +28,36 @@ async function getNameAndRole(page: Page, selector: string) {
   });
 }
 
+test('text visibility checks should not accumulate live ranges', async ({ page }) => {
+  test.info().annotations.push({ type: 'issue', description: 'https://github.com/microsoft/playwright/issues/43057' });
+  await page.setContent('<span style="display:contents">visible</span>'.repeat(100));
+  const result = await page.$eval('body', body => {
+    const ranges: Range[] = [];
+    const createRange = document.createRange.bind(document);
+    document.createRange = () => {
+      const range = createRange();
+      ranges.push(range);
+      return range;
+    };
+    try {
+      const injected = (window as any).__injectedScript;
+      let visible = true;
+      for (let i = 0; i < 10; ++i) {
+        for (const span of body.querySelectorAll('span'))
+          visible &&= injected.utils.isElementVisible(span);
+      }
+      return {
+        visible,
+        ranges: ranges.length,
+        retainsText: ranges.some(range => range.startContainer !== document || range.endContainer !== document),
+      };
+    } finally {
+      document.createRange = createRange;
+    }
+  });
+  expect(result).toEqual({ visible: true, ranges: 1, retainsText: false });
+});
+
 const ranges = [
   'name_1.0_combobox-focusable-alternative-manual.html',
   'name_test_case_539-manual.html',

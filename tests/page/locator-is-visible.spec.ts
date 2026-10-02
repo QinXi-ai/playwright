@@ -41,6 +41,32 @@ it('isVisible should be true for opacity:0', async ({ page }) => {
   await expect(page.locator('div')).toBeVisible();
 });
 
+it('isVisible should work with display:contents text across DOM changes and frames', async ({ page }) => {
+  await page.setContent(`
+    <span id=first style="display:contents">first</span>
+    <span id=second style="display:contents"> </span>
+    <div id=host></div>
+    <iframe srcdoc='<span style="display:contents">frame text</span>'></iframe>
+    <script>
+      host.attachShadow({ mode: 'open' }).innerHTML = '<span style="display:contents">shadow text</span>';
+    </script>
+  `);
+  await expect(page.locator('#first')).toBeVisible();
+  await expect(page.locator('#second')).toBeHidden();
+  await expect(page.locator('#host span')).toBeVisible();
+  await expect(page.frameLocator('iframe').locator('span')).toBeVisible();
+
+  await page.evaluate(() => {
+    document.querySelector('#first').textContent = '';
+    document.querySelector('#second').textContent = 'second';
+    document.querySelector('#host').shadowRoot.querySelector('span').textContent = '';
+  });
+  await expect(page.locator('#first')).toBeHidden();
+  await expect(page.locator('#second')).toBeVisible();
+  await expect(page.locator('#host span')).toBeHidden();
+  await expect(page.frameLocator('iframe').locator('span')).toBeVisible();
+});
+
 it('isVisible should be true for element outside view', async ({ page }) => {
   await page.setContent(`<div style="position: absolute; left: -1000px">Hi</div>`);
   await expect(page.locator('div')).toBeVisible();

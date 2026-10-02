@@ -148,11 +148,21 @@ export function isElementVisible(element: Element): boolean {
   return computeBox(element).visible;
 }
 
+const visibleTextNodeRanges = new WeakMap<Document, Range>();
+
 export function isVisibleTextNode(node: Text) {
   // https://stackoverflow.com/questions/1461059/is-there-an-equivalent-to-getboundingclientrect-for-text-nodes
-  const range = node.ownerDocument.createRange();
+  const document = node.ownerDocument;
+  let range = visibleTextNodeRanges.get(document);
+  if (!range) {
+    range = document.createRange();
+    visibleTextNodeRanges.set(document, range);
+  }
   range.selectNode(node);
   const rect = range.getBoundingClientRect();
+  // Do not retain text or its shadow root between visibility checks.
+  range.setStart(document, 0);
+  range.collapse(true);
   return rect.width > 0 && rect.height > 0;
 }
 
